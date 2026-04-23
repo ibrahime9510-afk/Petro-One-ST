@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(roles) {
+      return isVerified() && getUserData().role in roles;
+    }
+
+    function isAdmin() {
+      return hasRole(['admin']);
+    }
+
+    function isOperator() {
+      return hasRole(['admin', 'operator']);
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Entity Validations
+    function isValidStation(data) {
+      return data.nameAr is string && data.nameAr.size() > 0 && data.nameAr.size() <= 200 &&
+             data.nameEn is string && data.nameEn.size() > 0 && data.nameEn.size() <= 200 &&
+             data.latitude is number && data.longitude is number &&
+             data.status in ['Planning', 'Designing', 'Construction', 'Operational', 'Expansion'] &&
+             data.completionPercentage is number && data.completionPercentage >= 0 && data.completionPercentage <= 100 &&
+             (!('region' in data) || data.region in ['Central', 'North', 'South', 'East', 'West']) &&
+             (!('images' in data) || (data.images is list && data.images.size() <= 10)) &&
+             (!('documents' in data) || (data.documents is list && data.documents.size() <= 20));
+    }
+
+    function isValidUserProfile(data) {
+      return data.email is string && data.email.size() <= 100 &&
+             data.role in ['admin', 'operator', 'viewer'] &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100));
+    }
+
+    // Collection Rules
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUserProfile(request.resource.data) && request.resource.data.role == 'viewer'; // Default to viewer on self-reg
+      allow update: if (isOwner(userId) || isAdmin()) && 
+                    isValidUserProfile(request.resource.data) &&
+                    (isAdmin() || (request.resource.data.role == resource.data.role)); // Only admin can change roles
+    }
+
+    match /stations/{stationId} {
+      allow read: if isVerified();
+      allow create: if isOperator() && isValidStation(request.resource.data) && isValidId(stationId);
+      allow update: if isOperator() && 
+                    isValidStation(request.resource.data) &&
+                    request.resource.data.updatedAt == request.time &&
+                    request.resource.data.updatedBy == request.auth.uid;
+      allow delete: if isAdmin();
+
+      match /logs/{logId} {
+        allow read: if isVerified();
+        allow create: if isOperator() && isValidId(logId) && 
+                      request.resource.data.stationId == stationId &&
+                      request.resource.data.userId == request.auth.uid &&
+                      request.resource.data.timestamp == request.time;
+      }
+    }
+  }
+}

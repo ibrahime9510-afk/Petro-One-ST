@@ -1,0 +1,63 @@
+{
+  "entities": {
+    "Station": {
+      "title": "Gas Station",
+      "description": "Represents a single gas station in the PetroOne network.",
+      "type": "object",
+      "properties": {
+        "nameAr": { "type": "string", "description": "Station name in Arabic" },
+        "nameEn": { "type": "string", "description": "Station name in English" },
+        "owner": { "type": "string", "description": "Station owner name" },
+        "latitude": { "type": "number", "description": "Latitude coordinate" },
+        "longitude": { "type": "number", "description": "Longitude coordinate" },
+        "region": { "type": "string", "enum": ["Central", "North", "South", "East", "West"], "description": "Geographical region" },
+        "status": { "type": "string", "enum": ["Planning", "Designing", "Construction", "Operational", "Expansion"], "description": "Current project phase" },
+        "completionPercentage": { "type": "number", "description": "Overall progress from 0 to 100" },
+        "images": { "type": "array", "description": "List of image URLs" },
+        "documents": { "type": "array", "description": "List of document objects (licenses, permits)" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last time the record was modified" },
+        "updatedBy": { "type": "string", "description": "UID of the user who last updated" }
+      },
+      "required": ["nameAr", "nameEn", "latitude", "longitude", "status", "completionPercentage"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Extended user information and permissions.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "operator", "viewer"] },
+        "displayName": { "type": "string" },
+        "lastLogin": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "role"]
+    },
+    "StationLog": {
+      "title": "Station Log",
+      "description": "History of updates for a specific station.",
+      "type": "object",
+      "properties": {
+        "stationId": { "type": "string" },
+        "userId": { "type": "string" },
+        "action": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "details": { "type": "string" }
+      },
+      "required": ["stationId", "userId", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/stations/{stationId}": {
+      "schema": "Station",
+      "description": "Collection of all managed gas stations."
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Private user profiles and roles."
+    },
+    "/stations/{stationId}/logs/{logId}": {
+      "schema": "StationLog",
+      "description": "Audit trail for station-specific changes."
+    }
+  }
+}
